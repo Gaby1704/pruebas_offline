@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="pruebas_offline"
+        android:label="Metodo de subida offline"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

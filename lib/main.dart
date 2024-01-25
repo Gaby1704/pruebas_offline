@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:path/path.dart';
 import 'dart:async';
+import 'package:fluttertoast/fluttertoast.dart'; // Import the package
 
 void main() => runApp(MyApp());
 
@@ -47,6 +48,9 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
   void updateStatus(String status) {
     setState(() {
       _connectionStatus = status;
+      if (_connectionStatus.contains('Conectado')) {
+        showToast('Conexión restaurada');
+      }
     });
   }
 
@@ -84,6 +88,19 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
     }
   }
 
+  // Show toast message
+  void showToast(String message) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      timeInSecForIosWeb: 1,
+      backgroundColor: Colors.black,
+      textColor: Colors.white,
+      fontSize: 16.0,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,7 +129,31 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
               child: Text('Enviar'),
             ),
             SizedBox(height: 20),
-            Text('Estado de la conexión: $_connectionStatus'),
+            // Display locally stored data
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: DatabaseHelper.instance.queryAllRows(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return CircularProgressIndicator();
+                } else if (snapshot.hasError) {
+                  return Text('Error: ${snapshot.error}');
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Text('No hay datos almacenados localmente.');
+                } else {
+                  // Display locally stored data
+                  List<String> names = [];
+                  for (var data in snapshot.data!) {
+                    names.add(data[DatabaseHelper.columnName]);
+                  }
+                  return Column(
+                    children: [
+                      Text('Datos almacenados localmente:'),
+                      for (var name in names) Text(name),
+                    ],
+                  );
+                }
+              },
+            ),
             ElevatedButton(
               onPressed: () {
                 checkConnectivity();
