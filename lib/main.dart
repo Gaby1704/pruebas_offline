@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:path/path.dart';
 import 'dart:async';
-import 'package:fluttertoast/fluttertoast.dart'; // Import the package
+import 'package:fluttertoast/fluttertoast.dart';
 
 void main() => runApp(MyApp());
 
@@ -29,6 +29,23 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
   String _connectionStatus = 'Presiona el botón para verificar la conexión';
   TextEditingController _nameController = TextEditingController();
   String _enteredName = "";
+  bool _showUploadButton = false;
+
+  @override
+  void initState() {
+    super.initState();
+    checkLocalDataOnStart();
+  }
+
+  Future<void> checkLocalDataOnStart() async {
+    List<Map<String, dynamic>> localData = await DatabaseHelper.instance.queryAllRows();
+    if (localData.isNotEmpty) {
+      showToast('Hay datos almacenados localmente.');
+      setState(() {
+        _showUploadButton = true;
+      });
+    }
+  }
 
   Future<void> checkConnectivity() async {
     try {
@@ -49,7 +66,7 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
     setState(() {
       _connectionStatus = status;
       if (_connectionStatus.contains('Conectado')) {
-        showToast('Conexión restaurada');
+        showToast('Conectado a internet');
       }
     });
   }
@@ -80,15 +97,17 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
     if (connectivityResult == ConnectivityResult.mobile || connectivityResult == ConnectivityResult.wifi) {
       sendDataToServer(_enteredName);
     } else {
-      // Save data locally
+      showToast('No hay conexión a Internet. Datos guardados localmente.');
       DatabaseHelper.instance.insert({
         DatabaseHelper.columnName: _enteredName
       });
       updateStatus('Sin conexión a Internet. Datos guardados localmente.');
+      setState(() {
+        _showUploadButton = true;
+      });
     }
   }
 
-  // Show toast message
   void showToast(String message) {
     Fluttertoast.showToast(
       msg: message,
@@ -99,6 +118,18 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
       textColor: Colors.white,
       fontSize: 16.0,
     );
+  }
+  Future<void> uploadLocalData() async {
+    List<Map<String, dynamic>> localData = await DatabaseHelper.instance.queryAllRows();
+    for (var data in localData) {
+      String name = data[DatabaseHelper.columnName];
+      await sendDataToServer(name);
+    }
+    await DatabaseHelper.instance.deleteAllRows();
+    setState(() {
+      _showUploadButton = false;
+    });
+    showToast('Datos subidos al servidor con éxito.');
   }
 
   @override
@@ -129,7 +160,6 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
               child: Text('Enviar'),
             ),
             SizedBox(height: 20),
-            // Display locally stored data
             FutureBuilder<List<Map<String, dynamic>>>(
               future: DatabaseHelper.instance.queryAllRows(),
               builder: (context, snapshot) {
@@ -140,7 +170,6 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return Text('No hay datos almacenados localmente.');
                 } else {
-                  // Display locally stored data
                   List<String> names = [];
                   for (var data in snapshot.data!) {
                     names.add(data[DatabaseHelper.columnName]);
@@ -160,6 +189,13 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
               },
               child: Text('Verificar Conexión'),
             ),
+            if (_showUploadButton)
+              ElevatedButton(
+                onPressed: () {
+                  uploadLocalData();
+                },
+                child: Text('Subir al Servidor'),
+              ),
           ],
         ),
       ),
@@ -167,7 +203,6 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
   }
 }
 
-// Database helper class
 class DatabaseHelper {
   static final _databaseName = "MyDatabase.db";
   static final _databaseVersion = 1;
@@ -208,5 +243,10 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> queryAllRows() async {
     Database db = await instance.database;
     return await db.query(table);
+  }
+
+  Future<void> deleteAllRows() async {
+    Database db = await instance.database;
+    await db.delete(table);
   }
 }
